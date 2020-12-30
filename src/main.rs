@@ -3,39 +3,51 @@
 extern crate rocket;
 
 use convert_case::*;
-use rocket::response::{NamedFile, Redirect};
-use std::fs;
-use std::io;
-use std::os::linux::fs::MetadataExt;
-use std::path::{Path, PathBuf};
-
+use rocket::response::Redirect;
+use rocket_contrib::serve::StaticFiles;
+use std::fs::File;
+use std::path::Path;
 
 #[get("/")]
 fn index() -> Redirect {
     let root = get_rootname().unwrap().to_case(Case::Snake);
     let path = format!("/{}/index.html", root);
-    Redirect::permanent(path.to_owned())
+    
+    Redirect::to(path.to_owned())
 }
-#[get("/<file..>")]
-fn static_files(file: PathBuf) -> io::Result<NamedFile> {
-    NamedFile::open(Path::new("./target/doc/").join(file))
-}
-
 
 fn main() {
     rocket::ignite()
-        // .mount("/", StaticFiles::from("./target/doc"))
-        .mount("/", routes!(index, static_files))
+        .mount("/", StaticFiles::from("./target/doc"))
+        .mount("/", routes!(index))
         .launch();
 }
 
 fn get_rootname() -> Result<String, String> {
-    let pkg_name = env!("CARGO_PKG_NAME");
-    Ok(pkg_name.to_string())
+    let cargo_toml =
+        std::fs::read_to_string("Cargo.toml").expect("Cannot Find Cargo.toml in the workspace");
+    let cargo_toml: toml::Value = toml::from_str(cargo_toml.as_str()).unwrap();
+
+    let package: &toml::Value = cargo_toml
+        .get("package")
+        .ok_or("Cannot find header `package` in `Cargo.toml`")?;
+
+    package
+        .get("name")
+        .map(|name| {
+            let name = name.to_string();
+            name.trim_start_matches("\"")
+                .trim_end_matches("\"")
+                .to_string()
+        })
+        .ok_or(
+            "Cannot find `name` inside \
+                `package` in `Cargo.toml` "
+                .to_owned(),
+        )
 }
 
 #[test]
 fn test() {
-    let pkg_name = env!("CARGO_PKG_NAME");
-    assert_eq!(pkg_name, "doc-server");
+    assert_eq!(get_rootname().unwrap(), "doc-server");
 }
