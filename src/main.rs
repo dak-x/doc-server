@@ -1,31 +1,29 @@
-#![feature(proc_macro_hygiene, decl_macro)]
-#[macro_use]
-extern crate rocket;
-
+// Also include a running cargo docs webpage
 use convert_case::*;
-use rocket::response::Redirect;
-use rocket_contrib::serve::StaticFiles;
+use pretty_env_logger;
 use std::fs::File;
 use std::path::Path;
+use std::path::PathBuf;
+use warp::Filter;
 
-#[get("/")]
-fn index() -> Redirect {
+#[tokio::main]
+async fn main() {
+    pretty_env_logger::init();
+
     let root = get_rootname().unwrap().to_case(Case::Snake);
-    let path = format!("/{}/index.html", root);
-    
-    Redirect::to(path.to_owned())
+
+    let readme = warp::get()
+        .and(warp::path::end())
+        .and(warp::fs::file(format!("./target/doc/{}/index.html", root)));
+
+    let examples = warp::get().and(warp::fs::dir("./target/doc/"));
+    let routes = readme.or(examples);
+    warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }
 
-fn main() {
-    rocket::ignite()
-        .mount("/", StaticFiles::from("./target/doc"))
-        .mount("/", routes!(index))
-        .launch();
-}
-
-fn get_rootname() -> Result<String, String> {
+fn get_rootname() -> std::result::Result<String, String> {
     let cargo_toml =
-        std::fs::read_to_string("Cargo.toml").expect("Cannot Find Cargo.toml in the workspace");
+        std::fs::read_to_string("Cargo.toml").expect("Cannot Read Cargo.toml in the workspace");
     let cargo_toml: toml::Value = toml::from_str(cargo_toml.as_str()).unwrap();
 
     let package: &toml::Value = cargo_toml
@@ -45,6 +43,13 @@ fn get_rootname() -> Result<String, String> {
                 `package` in `Cargo.toml` "
                 .to_owned(),
         )
+}
+
+fn print_meta() {
+    println!("Cargo.toml:");
+    let mut f = File::open("Cargo.toml").unwrap();
+    let metadata = f.metadata().unwrap();
+    println!("{:#?}", metadata);
 }
 
 #[test]

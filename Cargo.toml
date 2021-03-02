@@ -7,8 +7,8 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chrono = "0.4"
 toml = "0.5"
 convert_case = "0.4"
-rocket = "0.4.6"
-rocket_contrib = "0.4.6"
+tokio = { version = "*", features = ["full"] }
+warp = "*"
+pretty_env_logger = "*"
